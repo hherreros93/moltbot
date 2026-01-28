@@ -1,3 +1,4 @@
+import { buildMentionRegexes, normalizeMentionText } from "../../auto-reply/reply/mentions.js";
 import { loadConfig } from "../../config/config.js";
 import { logVerbose } from "../../globals.js";
 import { buildPairingReply } from "../../pairing/pairing-messages.js";
@@ -32,6 +33,7 @@ export async function checkInboundAccessControl(params: {
     sendMessage: (jid: string, content: { text: string }) => Promise<unknown>;
   };
   remoteJid: string;
+  body?: string;
 }): Promise<InboundAccessControlResult> {
   const cfg = loadConfig();
   const account = resolveWhatsAppAccount({
@@ -118,13 +120,20 @@ export async function checkInboundAccessControl(params: {
   // DM access control (secure defaults): "pairing" (default) / "allowlist" / "open" / "disabled".
   if (!params.group) {
     if (params.isFromMe && !isSamePhone) {
-      logVerbose("Skipping outbound DM (fromMe); no pairing reply needed.");
-      return {
-        allowed: false,
-        shouldMarkRead: false,
-        isSelfChat,
-        resolvedAccountId: account.accountId,
-      };
+      // Allow outbound DMs through if they contain a mention pattern (e.g. @baconte)
+      const mentionRegexes = buildMentionRegexes(cfg, undefined);
+      const bodyClean = normalizeMentionText(params.body);
+      const hasMention = mentionRegexes.length > 0 && mentionRegexes.some((re) => re.test(bodyClean));
+      if (!hasMention) {
+        logVerbose("Skipping outbound DM (fromMe, no mention); no pairing reply needed.");
+        return {
+          allowed: false,
+          shouldMarkRead: false,
+          isSelfChat,
+          resolvedAccountId: account.accountId,
+        };
+      }
+      logVerbose("Allowing outbound DM (fromMe) because mention pattern detected.");
     }
     if (dmPolicy === "disabled") {
       logVerbose("Blocked dm (dmPolicy: disabled)");

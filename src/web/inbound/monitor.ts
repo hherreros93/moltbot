@@ -177,6 +177,9 @@ export async function monitorWebInbox(options: {
         ? Number(msg.messageTimestamp) * 1000
         : undefined;
 
+      // Extract text early so access control can check for mention patterns in outbound DMs
+      const earlyBody = extractText(msg.message ?? undefined);
+
       const access = await checkInboundAccessControl({
         accountId: options.accountId,
         from,
@@ -189,6 +192,7 @@ export async function monitorWebInbox(options: {
         connectedAtMs,
         sock: { sendMessage: (jid, content) => sock.sendMessage(jid, content) },
         remoteJid,
+        body: earlyBody ?? undefined,
       });
       if (!access.allowed) continue;
 
