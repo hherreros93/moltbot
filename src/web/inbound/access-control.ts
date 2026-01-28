@@ -122,7 +122,7 @@ export async function checkInboundAccessControl(params: {
     if (params.isFromMe && !isSamePhone) {
       // Allow outbound DMs through if they contain a mention pattern (e.g. @baconte)
       const mentionRegexes = buildMentionRegexes(cfg, undefined);
-      const bodyClean = normalizeMentionText(params.body);
+      const bodyClean = normalizeMentionText(params.body ?? "");
       const hasMention = mentionRegexes.length > 0 && mentionRegexes.some((re) => re.test(bodyClean));
       if (!hasMention) {
         logVerbose("Skipping outbound DM (fromMe, no mention); no pairing reply needed.");
