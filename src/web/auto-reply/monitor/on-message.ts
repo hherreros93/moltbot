@@ -6,6 +6,7 @@ import { resolveAgentRoute } from "../../../routing/resolve-route.js";
 import { buildGroupHistoryKey } from "../../../routing/session-key.js";
 import { normalizeE164 } from "../../../utils.js";
 import type { MentionConfig } from "../mentions.js";
+import { buildMentionConfig, debugMention } from "../mentions.js";
 import type { WebInboundMsg } from "../types.js";
 import { maybeBroadcastMessage } from "./broadcast.js";
 import type { EchoTracker } from "./echo.js";
@@ -143,6 +144,18 @@ export function createWebOnMessageHandler(params: {
       // Ensure `peerId` for DMs is stable and stored as E.164 when possible.
       if (!msg.senderE164 && peerId && peerId.startsWith("+")) {
         msg.senderE164 = normalizeE164(peerId) ?? msg.senderE164;
+      }
+
+      // DM gating: only process if self-chat OR mention detected
+      // This prevents error messages being sent to contacts when API is down
+      const isSelfChat = msg.from === msg.to;
+      if (!isSelfChat) {
+        const mentionConfig = buildMentionConfig(params.cfg, route.agentId);
+        const mentionDebug = debugMention(msg, mentionConfig, params.account?.authDir);
+        if (!mentionDebug.wasMentioned) {
+          logVerbose(`Skipping DM (no mention detected) from ${msg.from}: ${msg.body?.slice(0, 50)}...`);
+          return;
+        }
       }
     }
 
